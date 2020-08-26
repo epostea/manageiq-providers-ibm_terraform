@@ -112,8 +112,7 @@ class ManageIQ::Providers::IbmTerraform::Provider < ::Provider
 
   def self.raw_connect(base_url, username, password, verify_mode)
     url      = URI.parse(base_url)
-    url.port = 8443
-    url.path = "/v1/auth/identitytoken"
+    url.path = "/idprovider/v1/auth/identitytoken"
     use_ssl  = url.scheme == "https"
 
     require "net/http"
