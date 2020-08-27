@@ -44,6 +44,13 @@ class ManageIQ::Providers::IbmTerraform::Provider < ::Provider
                   :validate   => [{:type => "required-validator"}]
                 },
                 {
+                  :component  => "text-field",
+                  :name       => "endpoints.identity.url",
+                  :label      => _("Identity URL"),
+                  :isRequired => true,
+                  :validate   => [{:type => "required-validator"}]
+                },
+                {
                   :component    => "select-field",
                   :name         => "endpoints.default.verify_ssl",
                   :label        => _("SSL verification"),
@@ -87,7 +94,7 @@ class ManageIQ::Providers::IbmTerraform::Provider < ::Provider
   # Verify Credentials
   # args: {
   #  "endpoints" => {
-  #    "default" => {
+  #    "identity" => {
   #       "url" => nil,
   #       "verify_ssl" => nil
   #    },
@@ -101,13 +108,15 @@ class ManageIQ::Providers::IbmTerraform::Provider < ::Provider
   # }
   def self.verify_credentials(args)
     default_authentication = args.dig("authentications", "default")
-    base_url = args.dig("endpoints", "default", "url")
+    identity_url = args.dig("endpoints", "identity", "url")
+
+    #TODO: use the verify_ssl from identity endpoint
     verify_mode = args.dig("endpoints", "default", "verify_ssl")
 
     userid   = default_authentication["userid"]
     password = MiqPassword.try_decrypt(default_authentication["password"])
 
-    !!raw_connect(base_url, userid, password, verify_mode)
+    !!raw_connect(identity_url, userid, password, verify_mode)
   end
 
   def self.raw_connect(base_url, username, password, verify_mode)
@@ -132,12 +141,18 @@ class ManageIQ::Providers::IbmTerraform::Provider < ::Provider
     "Bearer #{JSON.parse(response.body)["access_token"]}"
   end
 
+  def identity_url
+    identity_endpoint = endpoints.detect { |e| e.role == "identity" }
+    identity_endpoint || endpoints.build(:role => "identity")
+    return identity_endpoint.url
+  end
+
   def connect(options = {})
     auth_type = options[:auth_type]
     raise "no credentials defined" if self.missing_credentials?(auth_type)
 
     verify_ssl = options[:verify_ssl] || self.verify_ssl
-    base_url   = options[:url] || url
+    base_url   = options[:url] || identity_url
     username   = options[:username] || authentication_userid(auth_type)
     password   = options[:password] || authentication_password(auth_type)
 
@@ -145,6 +160,7 @@ class ManageIQ::Providers::IbmTerraform::Provider < ::Provider
   end
 
   def verify_credentials(auth_type = nil, options = {})
+    #TODO: do we need this? can we clean it up?
     uri = URI.parse(url) unless url.blank?
 
     !!self.class.raw_connect(url, *auth_user_pwd, false)
